@@ -12,7 +12,18 @@
 #include "button.h"
 #include "pwm.h"
 
+// boat constants
+#define BOAT_SPEED 1 // boat speed in m/s
+#define LINE_LENGTH 1 // straight line distance in meters
+#define TURN_RADIUS 1 // semicircle turn radius in meters
+
+#define PI 3.14159
+
 unsigned long last_time = 0;     // last time through the loop
+unsigned long turn_start_time;   // time when turning started
+unsigned int isTurning = 0;
+unsigned int turningFinished = 0;
+
 /*
  * boat_loop
  * ----------------------------
@@ -114,13 +125,44 @@ void boat_loop(unsigned long timestamp, double heading) {
     if (start==1) {
         running_time = timestamp - start_time;			// calculate elapsed time
         
-        // place timed events here
-         if (running_time < 10000)
-             target = 0;                                // run for 10s straight ahead
-         else if (running_time < 20000)
-             target = 270;                               // turn to 270 for 10s
-         else
-             target = 180;                              // turn to 270 for 10s
+    //     // place timed events here
+    //      if (running_time < 10000)
+    //          target = 0;                                // run for 10s straight ahead
+    //      else if (running_time < 20000)
+    //          target = 270;                               // turn to 270 for 10s
+    //      else
+    //          target = 180;                              // turn to 270 for 10s
+
+        // go in a straight line when not turning
+        if (!isTurning)
+        {
+            // go straight forwards at the beginning
+            if (running_time < 1000 * LINE_LENGTH / BOAT_SPEED)
+                target = 0;
+            // go straight backwards at the end, after turning
+            else if (turningFinished)
+                target = 180;
+            // initialize turning
+            else
+            {
+                isTurning = 1;
+                turn_start_time = timestamp;
+            }
+        }
+        // turn to heading calculated via constants
+        else
+        {
+            // target angle is arc length (time * speed) divided by radius, converted to degrees
+            target = (180.0 * PI) * (timestamp - turn_start_time) * (BOAT_SPEED / TURN_RADIUS);
+            target = 360 - target;
+
+            // if calculated heading is back to start, end turning
+            if (target < 180)
+            {
+                isTurning = 0;
+                turningFinished = 1;
+            }
+        }
         
         // PID routine
         // bigger P causes boat to have more reaction to heading errors
